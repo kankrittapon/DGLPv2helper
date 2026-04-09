@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=420, initial-scale=1.0">
+  <title>DGLP Quiz Helper</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- ===== Header ===== -->
+  <header class="header">
+    <div class="header-brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+          <path d="M9 14l2 2 4-4"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="header-title">DGLP Quiz Helper</h1>
+        <p class="header-sub">ดึงข้อสอบ · ใส่คำตอบ · อัตโนมัติ</p>
+      </div>
+    </div>
+    <div id="statusBadge" class="status-badge status-offline">
+      <span class="status-dot"></span>
+      <span id="statusText">ไม่พบ Quiz</span>
+    </div>
+  </header>
+
+  <!-- ===== Tabs ===== -->
+  <nav class="tabs">
+    <button class="tab active" data-tab="extract">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>
+      ดึงข้อสอบ
+    </button>
+    <button class="tab" data-tab="fill">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      ใส่คำตอบ
+    </button>
+    <button class="tab" data-tab="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+      ตั้งค่า
+    </button>
+  </nav>
+
+  <!-- ===== Tab Content ===== -->
+  <main class="content">
+
+    <!-- TAB: ดึงข้อสอบ -->
+    <section id="tab-extract" class="tab-content active">
+      <div class="card">
+        <div class="card-header">
+          <h3>📋 ดึงข้อสอบจากหน้าปัจจุบัน</h3>
+        </div>
+        <p class="card-desc">กดปุ่มเพื่อดึงคำถามทั้งหมด แล้ว Copy ไปถาม AI</p>
+        
+        <button id="btnExtract" class="btn btn-primary btn-block">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg>
+          ดึงข้อสอบ
+        </button>
+
+        <div id="extractResult" class="result-box hidden">
+          <div class="result-header">
+            <span id="extractCount" class="badge">0 ข้อ</span>
+            <span id="extractCopied" class="copied-tag hidden">✅ Copied!</span>
+          </div>
+          <pre id="extractPreview" class="preview-text"></pre>
+          <button id="btnCopyAgain" class="btn btn-secondary btn-sm">
+            📋 Copy อีกครั้ง
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: ใส่คำตอบ -->
+    <section id="tab-fill" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h3>🤖 ใส่คำตอบจาก AI</h3>
+        </div>
+        <p class="card-desc">วางเฉลยจาก AI ลงช่องด้านล่าง รองรับหลาย format</p>
+
+        <div class="format-hint">
+          <strong>Format ที่รองรับ:</strong>
+          <code>1. ข</code> <code>ข้อ 1: ข</code> <code>1:ข</code> <code>Q1: B</code>
+        </div>
+
+        <textarea id="answerInput" class="textarea" rows="8" placeholder="วางเฉลยจาก AI ตรงนี้...&#10;&#10;ตัวอย่าง:&#10;1. ข&#10;2. ค&#10;3. ง&#10;4. ก&#10;..."></textarea>
+
+        <div id="parsedResult" class="parsed-result hidden">
+          <div class="parsed-header">
+            <span class="badge badge-success" id="parsedCount">0 ข้อ</span>
+            <span>พร้อมเติมคำตอบ</span>
+          </div>
+          <div id="parsedList" class="parsed-list"></div>
+        </div>
+
+        <div class="btn-group">
+          <button id="btnParse" class="btn btn-secondary">
+            🔍 ตรวจสอบเฉลย
+          </button>
+          <button id="btnFill" class="btn btn-primary" disabled>
+            ⚡ ใส่คำตอบอัตโนมัติ
+          </button>
+        </div>
+
+        <div id="fillResult" class="result-box hidden">
+          <div id="fillStatus" class="fill-status"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: ตั้งค่า -->
+    <section id="tab-settings" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h3>⚙️ ตั้งค่า</h3>
+        </div>
+
+        <div class="setting-group">
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">📋 Auto-copy เมื่อดึงข้อสอบ</span>
+              <span class="setting-desc">Copy ข้อสอบลง Clipboard อัตโนมัติ</span>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="optAutoCopy" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">🚀 Auto Submit หลังใส่คำตอบ</span>
+              <span class="setting-desc">กดส่งอัตโนมัติหลังใส่คำตอบ (ระวัง!)</span>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="optAutoSubmit">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-item">
+            <div class="setting-info">
+              <span class="setting-label">📡 API Interceptor</span>
+              <span class="setting-desc">ดักจับ API response เก็บไว้วิเคราะห์</span>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="optInterceptor" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="setting-group">
+          <label class="setting-label-full">💬 Prompt Template</label>
+          <p class="setting-desc">ข้อความที่ใช้ถาม AI — ใช้ <code>{questions}</code> แทนข้อสอบ</p>
+          <textarea id="optPrompt" class="textarea textarea-sm" rows="4">จากข้อสอบต่อไปนี้ ช่วยตอบคำตอบที่ถูกต้อง ตอบเฉพาะตัวเลือก ก-ง ในแต่ละข้อ:
+
+{questions}</textarea>
+        </div>
+
+        <div class="btn-group">
+          <button id="btnResetConfig" class="btn btn-danger btn-sm">🗑️ Reset ทั้งหมด</button>
+          <button id="btnSaveConfig" class="btn btn-primary btn-sm">💾 บันทึก</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== Footer ===== -->
+  <footer class="footer">
+    <span>DGLP Quiz Helper v1.0</span>
+    <span class="footer-dot">·</span>
+    <span id="apiCount">API: 0</span>
+  </footer>
+
+  <script src="popup.js"></script>
+</body>
+</html>
