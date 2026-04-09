@@ -1,4 +1,5 @@
-// ===== DGLP Quiz Helper — Popup Logic =====
+// ===== DGLP Quiz Helper — Popup Logic v1.1 =====
+// เพิ่ม AI Provider Integration
 
 // ============================================
 // Config Defaults
@@ -7,11 +8,95 @@ const DEFAULT_CONFIG = {
   autoCopy: true,
   autoSubmit: false,
   interceptor: true,
-  promptTemplate: 'จากข้อสอบต่อไปนี้ ช่วยตอบคำตอบที่ถูกต้อง ตอบเฉพาะตัวเลือก ก-ง ในแต่ละข้อ:\n\n{questions}'
+  aiProvider: 'gemini',
+  apiKey: '',
+  localEndpoint: 'http://localhost:11434/v1/chat/completions',
+  localModel: 'llama3',
+  promptTemplate: 'จากข้อสอบต่อไปนี้ ช่วยตอบคำตอบที่ถูกต้อง ตอบเฉพาะตัวเลือก ก-ง ในแต่ละข้อ โดยตอบในรูปแบบ:\n1. ก\n2. ข\n...\n\n{questions}'
+};
+
+// AI Provider Config
+const AI_PROVIDERS = {
+  gemini: {
+    name: 'Gemini',
+    label: '🔑 Gemini API Key',
+    hint: 'รับฟรีที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com</a>',
+    buildRequest: (prompt, apiKey) => ({
+      url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      options: {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      },
+      parseResponse: (json) => json?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+    })
+  },
+  claude: {
+    name: 'Claude',
+    label: '🔑 Claude API Key',
+    hint: 'ใช้ API Key จาก <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a>',
+    buildRequest: (prompt, apiKey) => ({
+      url: 'https://api.anthropic.com/v1/messages',
+      options: {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      },
+      parseResponse: (json) => json?.content?.[0]?.text || ''
+    })
+  },
+  grok: {
+    name: 'Grok',
+    label: '🔑 Grok API Key',
+    hint: 'ใช้ API Key จาก <a href="https://console.x.ai/" target="_blank">console.x.ai</a> ($25 เครดิตฟรี/เดือน)',
+    buildRequest: (prompt, apiKey) => ({
+      url: 'https://api.x.ai/v1/chat/completions',
+      options: {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: 'grok-3-mini',
+          messages: [{ role: 'user', content: prompt }]
+        })
+      },
+      parseResponse: (json) => json?.choices?.[0]?.message?.content || ''
+    })
+  },
+  local: {
+    name: 'Local LLM',
+    label: '🌐 Local LLM',
+    hint: 'Ollama, LM Studio, vLLM หรือ OpenAI-compatible endpoint',
+    buildRequest: (prompt, _, config) => ({
+      url: config.localEndpoint,
+      options: {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: config.localModel,
+          messages: [{ role: 'user', content: prompt }],
+          stream: false
+        })
+      },
+      parseResponse: (json) => json?.choices?.[0]?.message?.content || json?.message?.content || ''
+    })
+  }
 };
 
 let currentConfig = { ...DEFAULT_CONFIG };
 let parsedAnswers = {};
+let lastExtractedText = '';
 
 // ============================================
 // Init
@@ -22,6 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupExtractTab();
   setupFillTab();
   setupSettingsTab();
+  setupAIProviderUI();
   checkQuizStatus();
 });
 
@@ -40,7 +126,7 @@ function setupTabs() {
 }
 
 // ============================================
-// Check Quiz Status — ตรวจว่าอยู่หน้า Quiz ไหม
+// Check Quiz Status
 // ============================================
 async function checkQuizStatus() {
   try {
@@ -77,11 +163,13 @@ function setStatus(type, text) {
 }
 
 // ============================================
-// TAB 1: ดึงข้อสอบ
+// TAB 1: ดึงข้อสอบ + ถาม AI
 // ============================================
 function setupExtractTab() {
   document.getElementById('btnExtract').addEventListener('click', extractQuiz);
   document.getElementById('btnCopyAgain').addEventListener('click', copyAgain);
+  document.getElementById('btnAskAI').addEventListener('click', askAI);
+  document.getElementById('btnUseAIAnswer').addEventListener('click', useAIAnswer);
 }
 
 async function extractQuiz() {
@@ -99,21 +187,18 @@ async function extractQuiz() {
     const data = results?.[0]?.result;
     if (!data || data.questions.length === 0) {
       btn.innerHTML = '❌ ไม่พบคำถาม';
-      setTimeout(() => {
-        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg> ดึงข้อสอบ`;
-        btn.disabled = false;
-      }, 2000);
+      setTimeout(() => { resetExtractBtn(btn); }, 2000);
       return;
     }
 
     // สร้างข้อความ
-    const text = formatQuizText(data);
-    const promptText = currentConfig.promptTemplate.replace('{questions}', text);
+    lastExtractedText = formatQuizText(data);
+    const promptText = currentConfig.promptTemplate.replace('{questions}', lastExtractedText);
 
     // แสดงผล
     document.getElementById('extractResult').classList.remove('hidden');
     document.getElementById('extractCount').textContent = `${data.questions.length} ข้อ`;
-    document.getElementById('extractPreview').textContent = text;
+    document.getElementById('extractPreview').textContent = lastExtractedText;
 
     // Auto copy
     if (currentConfig.autoCopy) {
@@ -121,23 +206,111 @@ async function extractQuiz() {
       showCopied();
     }
 
-    // Update badge
     setStatus('online', `พบ ${data.questions.length} ข้อ`);
-
-    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg> ดึงข้อสอบ`;
-    btn.disabled = false;
+    resetExtractBtn(btn);
 
   } catch (e) {
     console.error(e);
     btn.innerHTML = '❌ เกิดข้อผิดพลาด';
-    setTimeout(() => {
-      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg> ดึงข้อสอบ`;
-      btn.disabled = false;
-    }, 2000);
+    setTimeout(() => { resetExtractBtn(btn); }, 2000);
   }
 }
 
-// ฟังก์ชันที่ inject เข้าไปในหน้าเว็บ
+function resetExtractBtn(btn) {
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg> ดึงข้อสอบ`;
+  btn.disabled = false;
+}
+
+// ============================================
+// Ask AI — ส่งข้อสอบไป AI โดยตรง
+// ============================================
+async function askAI() {
+  if (!lastExtractedText) {
+    alert('❌ กรุณาดึงข้อสอบก่อน');
+    return;
+  }
+
+  const provider = currentConfig.aiProvider;
+  const providerConfig = AI_PROVIDERS[provider];
+
+  // ตรวจ API Key
+  if (provider !== 'local' && !currentConfig.apiKey) {
+    alert(`❌ กรุณาใส่ ${providerConfig.name} API Key ในหน้าตั้งค่า`);
+    // สลับไป Settings tab
+    document.querySelectorAll('.tab')[2].click();
+    return;
+  }
+
+  // แสดง UI
+  const aiSection = document.getElementById('aiSection');
+  const aiLoader = document.getElementById('aiLoader');
+  const aiResponse = document.getElementById('aiResponse');
+  const aiActions = document.getElementById('aiActions');
+  const aiStatusText = document.getElementById('aiStatusText');
+  const aiProviderBadge = document.getElementById('aiProviderBadge');
+
+  aiSection.classList.remove('hidden');
+  aiLoader.classList.remove('hidden');
+  aiResponse.classList.add('hidden');
+  aiActions.classList.add('hidden');
+  aiStatusText.textContent = `กำลังถาม ${providerConfig.name}...`;
+  aiProviderBadge.textContent = providerConfig.name;
+
+  const promptText = currentConfig.promptTemplate.replace('{questions}', lastExtractedText);
+
+  try {
+    const { url, options, parseResponse } = providerConfig.buildRequest(
+      promptText, currentConfig.apiKey, currentConfig
+    );
+
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`${response.status}: ${errText.substring(0, 200)}`);
+    }
+
+    const json = await response.json();
+    const answer = parseResponse(json);
+
+    if (!answer) {
+      throw new Error('AI ไม่ได้ส่งคำตอบกลับมา');
+    }
+
+    // แสดงผล
+    aiLoader.classList.add('hidden');
+    aiResponse.classList.remove('hidden');
+    aiResponse.textContent = answer;
+    aiActions.classList.remove('hidden');
+    aiStatusText.textContent = `✅ ได้เฉลยจาก ${providerConfig.name} แล้ว`;
+
+  } catch (e) {
+    console.error('AI Error:', e);
+    aiLoader.classList.add('hidden');
+    aiResponse.classList.remove('hidden');
+    aiResponse.textContent = `❌ Error: ${e.message}`;
+    aiStatusText.textContent = 'เกิดข้อผิดพลาด';
+  }
+}
+
+// ใช้เฉลยจาก AI → ส่งไปแท็บ "ใส่คำตอบ" อัตโนมัติ
+function useAIAnswer() {
+  const aiText = document.getElementById('aiResponse').textContent;
+  if (!aiText) return;
+
+  // สลับไปแท็บใส่คำตอบ
+  document.querySelectorAll('.tab')[1].click();
+
+  // วางข้อความลง textarea
+  document.getElementById('answerInput').value = aiText;
+
+  // Auto parse
+  parseAnswers();
+}
+
+// ============================================
+// DOM Extraction (inject เข้าหน้าเว็บ)
+// ============================================
 function extractQuizFromPage() {
   const data = { questions: [], sectionName: '' };
 
@@ -177,7 +350,6 @@ async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
   } catch {
-    // Fallback
     const ta = document.createElement('textarea');
     ta.value = text;
     document.body.appendChild(ta);
@@ -207,7 +379,6 @@ function setupFillTab() {
   document.getElementById('btnParse').addEventListener('click', parseAnswers);
   document.getElementById('btnFill').addEventListener('click', fillAnswers);
 
-  // Live parse on input
   document.getElementById('answerInput').addEventListener('input', () => {
     document.getElementById('btnFill').disabled = true;
     document.getElementById('parsedResult').classList.add('hidden');
@@ -221,18 +392,14 @@ function parseAnswers() {
 
   parsedAnswers = {};
 
-  // แปลงจากอังกฤษเป็นไทย
   const engToThai = { 'A': 'ก', 'B': 'ข', 'C': 'ค', 'D': 'ง', 'a': 'ก', 'b': 'ข', 'c': 'ค', 'd': 'ง' };
 
   const lines = raw.split('\n');
   for (const line of lines) {
-    // รองรับหลาย format:
-    // "1. ข", "1: ข", "Q1: B", "ข้อ 1: ข", "คำถาม 1: ข", "1.ข", "1)ข"
     const match = line.match(/(?:Q|ข้อ|คำถาม)?\s*(\d+)\s*[.:)\-]\s*([กขคงA-Da-d])/);
     if (match) {
       const num = parseInt(match[1]);
       let answer = match[2].trim();
-      // แปลง A-D → ก-ง
       if (engToThai[answer]) answer = engToThai[answer];
       parsedAnswers[num] = answer;
     }
@@ -247,7 +414,6 @@ function parseAnswers() {
     return;
   }
 
-  // แสดง parsed list
   document.getElementById('parsedResult').classList.remove('hidden');
   document.getElementById('parsedCount').textContent = `${count} ข้อ`;
 
@@ -282,7 +448,6 @@ async function fillAnswers() {
 
     const data = results?.[0]?.result;
 
-    // แสดงผล
     const resultBox = document.getElementById('fillResult');
     const statusEl = document.getElementById('fillStatus');
     resultBox.classList.remove('hidden');
@@ -308,7 +473,6 @@ async function fillAnswers() {
   }
 }
 
-// ฟังก์ชันที่ inject เข้าหน้าเว็บเพื่อเลือกคำตอบ
 function fillAnswersOnPage(answerMap) {
   const questions = document.querySelectorAll('.test-question.question');
   const result = { filled: 0, total: questions.length, log: [] };
@@ -353,11 +517,59 @@ function fillAnswersOnPage(answerMap) {
 }
 
 // ============================================
-// TAB 3: Settings
+// TAB 3: Settings + AI Provider
 // ============================================
 function setupSettingsTab() {
   document.getElementById('btnSaveConfig').addEventListener('click', saveConfig);
   document.getElementById('btnResetConfig').addEventListener('click', resetConfig);
+  document.getElementById('btnToggleKey').addEventListener('click', toggleKeyVisibility);
+}
+
+function setupAIProviderUI() {
+  const radios = document.querySelectorAll('input[name="aiProvider"]');
+  radios.forEach(radio => {
+    radio.addEventListener('change', updateProviderUI);
+  });
+
+  // Set initial state from config
+  const providerRadio = document.querySelector(`input[name="aiProvider"][value="${currentConfig.aiProvider}"]`);
+  if (providerRadio) providerRadio.checked = true;
+  updateProviderUI();
+}
+
+function updateProviderUI() {
+  const selected = document.querySelector('input[name="aiProvider"]:checked')?.value || 'gemini';
+  const provider = AI_PROVIDERS[selected];
+
+  const apiKeyGroup = document.getElementById('apiKeyGroup');
+  const localLLMGroup = document.getElementById('localLLMGroup');
+  const apiKeyLabel = document.getElementById('apiKeyLabel');
+  const apiKeyHint = document.getElementById('apiKeyHint');
+  const footerAI = document.getElementById('aiProviderFooter');
+
+  if (selected === 'local') {
+    apiKeyGroup.classList.add('hidden');
+    localLLMGroup.classList.remove('hidden');
+  } else {
+    apiKeyGroup.classList.remove('hidden');
+    localLLMGroup.classList.add('hidden');
+    apiKeyLabel.textContent = provider.label;
+    apiKeyHint.innerHTML = provider.hint;
+  }
+
+  if (footerAI) footerAI.textContent = `AI: ${provider.name}`;
+}
+
+function toggleKeyVisibility() {
+  const input = document.getElementById('optApiKey');
+  const btn = document.getElementById('btnToggleKey');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '🔒';
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁️';
+  }
 }
 
 async function loadConfig() {
@@ -375,6 +587,9 @@ async function loadConfig() {
   document.getElementById('optAutoSubmit').checked = currentConfig.autoSubmit;
   document.getElementById('optInterceptor').checked = currentConfig.interceptor;
   document.getElementById('optPrompt').value = currentConfig.promptTemplate;
+  document.getElementById('optApiKey').value = currentConfig.apiKey || '';
+  document.getElementById('optLocalEndpoint').value = currentConfig.localEndpoint || DEFAULT_CONFIG.localEndpoint;
+  document.getElementById('optLocalModel').value = currentConfig.localModel || DEFAULT_CONFIG.localModel;
 }
 
 async function saveConfig() {
@@ -382,6 +597,10 @@ async function saveConfig() {
   currentConfig.autoSubmit = document.getElementById('optAutoSubmit').checked;
   currentConfig.interceptor = document.getElementById('optInterceptor').checked;
   currentConfig.promptTemplate = document.getElementById('optPrompt').value;
+  currentConfig.aiProvider = document.querySelector('input[name="aiProvider"]:checked')?.value || 'gemini';
+  currentConfig.apiKey = document.getElementById('optApiKey').value;
+  currentConfig.localEndpoint = document.getElementById('optLocalEndpoint').value;
+  currentConfig.localModel = document.getElementById('optLocalModel').value;
 
   await chrome.storage.local.set({ dglpConfig: currentConfig });
 
@@ -400,6 +619,13 @@ async function resetConfig() {
   document.getElementById('optAutoSubmit').checked = currentConfig.autoSubmit;
   document.getElementById('optInterceptor').checked = currentConfig.interceptor;
   document.getElementById('optPrompt').value = currentConfig.promptTemplate;
+  document.getElementById('optApiKey').value = '';
+  document.getElementById('optLocalEndpoint').value = currentConfig.localEndpoint;
+  document.getElementById('optLocalModel').value = currentConfig.localModel;
+
+  const providerRadio = document.querySelector('input[name="aiProvider"][value="gemini"]');
+  if (providerRadio) providerRadio.checked = true;
+  updateProviderUI();
 
   const btn = document.getElementById('btnResetConfig');
   btn.textContent = '✅ Reset แล้ว!';

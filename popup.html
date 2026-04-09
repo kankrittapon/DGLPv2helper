@@ -66,9 +66,32 @@
             <span id="extractCopied" class="copied-tag hidden">✅ Copied!</span>
           </div>
           <pre id="extractPreview" class="preview-text"></pre>
-          <button id="btnCopyAgain" class="btn btn-secondary btn-sm">
-            📋 Copy อีกครั้ง
-          </button>
+          <div class="btn-group">
+            <button id="btnCopyAgain" class="btn btn-secondary btn-sm">
+              📋 Copy อีกครั้ง
+            </button>
+            <button id="btnAskAI" class="btn btn-accent btn-sm">
+              🤖 ถาม AI เลย
+            </button>
+          </div>
+        </div>
+
+        <!-- AI Response -->
+        <div id="aiSection" class="result-box hidden">
+          <div class="ai-header">
+            <span class="badge badge-ai" id="aiProviderBadge">Gemini</span>
+            <span id="aiStatusText" class="ai-status">กำลังถาม AI...</span>
+          </div>
+          <div id="aiLoader" class="ai-loader hidden">
+            <div class="spinner"></div>
+            <span>กำลังประมวลผล...</span>
+          </div>
+          <pre id="aiResponse" class="preview-text hidden"></pre>
+          <div id="aiActions" class="btn-group hidden">
+            <button id="btnUseAIAnswer" class="btn btn-primary btn-sm">
+              ⚡ ใช้เฉลยนี้เลย
+            </button>
+          </div>
         </div>
       </div>
     </section>
@@ -153,10 +176,71 @@
           </div>
         </div>
 
+        <!-- AI Provider -->
+        <div class="setting-group">
+          <label class="setting-label-full">🤖 AI Provider</label>
+          <p class="setting-desc">เลือกผู้ให้บริการ AI สำหรับตอบข้อสอบอัตโนมัติ</p>
+
+          <div class="provider-grid">
+            <label class="provider-option">
+              <input type="radio" name="aiProvider" value="gemini" checked>
+              <div class="provider-card">
+                <span class="provider-icon">💎</span>
+                <span class="provider-name">Gemini</span>
+                <span class="provider-tag tag-free">Free</span>
+              </div>
+            </label>
+            <label class="provider-option">
+              <input type="radio" name="aiProvider" value="claude">
+              <div class="provider-card">
+                <span class="provider-icon">🟠</span>
+                <span class="provider-name">Claude</span>
+                <span class="provider-tag tag-key">API Key</span>
+              </div>
+            </label>
+            <label class="provider-option">
+              <input type="radio" name="aiProvider" value="grok">
+              <div class="provider-card">
+                <span class="provider-icon">⚡</span>
+                <span class="provider-name">Grok</span>
+                <span class="provider-tag tag-key">API Key</span>
+              </div>
+            </label>
+            <label class="provider-option">
+              <input type="radio" name="aiProvider" value="local">
+              <div class="provider-card">
+                <span class="provider-icon">🖥️</span>
+                <span class="provider-name">Local LLM</span>
+                <span class="provider-tag tag-special">Special</span>
+              </div>
+            </label>
+          </div>
+
+          <!-- API Key Input -->
+          <div id="apiKeyGroup" class="input-group">
+            <label class="input-label" id="apiKeyLabel">🔑 Gemini API Key</label>
+            <p class="setting-desc" id="apiKeyHint">รับฟรีที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com</a></p>
+            <input type="password" id="optApiKey" class="text-input" placeholder="ใส่ API Key ตรงนี้...">
+            <button id="btnToggleKey" class="btn-icon" title="แสดง/ซ่อน Key">👁️</button>
+          </div>
+
+          <!-- Local LLM Settings -->
+          <div id="localLLMGroup" class="input-group hidden">
+            <label class="input-label">🌐 Endpoint URL</label>
+            <p class="setting-desc">เช่น Ollama, LM Studio, vLLM</p>
+            <input type="text" id="optLocalEndpoint" class="text-input" placeholder="http://localhost:11434/v1/chat/completions">
+            <label class="input-label" style="margin-top:8px">📦 Model Name</label>
+            <input type="text" id="optLocalModel" class="text-input" placeholder="llama3, qwen2.5, gemma2">
+          </div>
+        </div>
+
         <div class="setting-group">
           <label class="setting-label-full">💬 Prompt Template</label>
           <p class="setting-desc">ข้อความที่ใช้ถาม AI — ใช้ <code>{questions}</code> แทนข้อสอบ</p>
-          <textarea id="optPrompt" class="textarea textarea-sm" rows="4">จากข้อสอบต่อไปนี้ ช่วยตอบคำตอบที่ถูกต้อง ตอบเฉพาะตัวเลือก ก-ง ในแต่ละข้อ:
+          <textarea id="optPrompt" class="textarea textarea-sm" rows="4">จากข้อสอบต่อไปนี้ ช่วยตอบคำตอบที่ถูกต้อง ตอบเฉพาะตัวเลือก ก-ง ในแต่ละข้อ โดยตอบในรูปแบบ:
+1. ก
+2. ข
+...
 
 {questions}</textarea>
         </div>
@@ -172,9 +256,9 @@
 
   <!-- ===== Footer ===== -->
   <footer class="footer">
-    <span>DGLP Quiz Helper v1.0</span>
+    <span>DGLP Quiz Helper v1.1</span>
     <span class="footer-dot">·</span>
-    <span id="apiCount">API: 0</span>
+    <span id="aiProviderFooter">AI: Gemini</span>
   </footer>
 
   <script src="popup.js"></script>
