@@ -1,113 +1,28 @@
-// ===== DGLP Quiz Helper — Popup Logic v1.1 =====
-// เพิ่ม AI Provider Integration
+// ===== DGLP Quiz Helper — Popup Main v1.2 =====
+// Entry point — initializes all modules
 
-// ============================================
-// Config Defaults
-// ============================================
-const DEFAULT_CONFIG = {
-  autoCopy: true,
-  autoSubmit: false,
-  interceptor: true,
-  aiProvider: 'gemini',
-  apiKey: '',
-  localEndpoint: 'http://localhost:11434/v1/chat/completions',
-  localModel: 'llama3',
-  promptTemplate: 'จากข้อสอบต่อไปนี้ ช่วยตอบคำตอบที่ถูกต้อง ตอบเฉพาะตัวเลือก ก-ง ในแต่ละข้อ โดยตอบในรูปแบบ:\n1. ก\n2. ข\n...\n\n{questions}'
-};
-
-// AI Provider Config
-const AI_PROVIDERS = {
-  gemini: {
-    name: 'Gemini',
-    label: '🔑 Gemini API Key',
-    hint: 'รับฟรีที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com</a>',
-    buildRequest: (prompt, apiKey) => ({
-      url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      options: {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      },
-      parseResponse: (json) => json?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-    })
-  },
-  claude: {
-    name: 'Claude',
-    label: '🔑 Claude API Key',
-    hint: 'ใช้ API Key จาก <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a>',
-    buildRequest: (prompt, apiKey) => ({
-      url: 'https://api.anthropic.com/v1/messages',
-      options: {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      },
-      parseResponse: (json) => json?.content?.[0]?.text || ''
-    })
-  },
-  grok: {
-    name: 'Grok',
-    label: '🔑 Grok API Key',
-    hint: 'ใช้ API Key จาก <a href="https://console.x.ai/" target="_blank">console.x.ai</a> ($25 เครดิตฟรี/เดือน)',
-    buildRequest: (prompt, apiKey) => ({
-      url: 'https://api.x.ai/v1/chat/completions',
-      options: {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: 'grok-3-mini',
-          messages: [{ role: 'user', content: prompt }]
-        })
-      },
-      parseResponse: (json) => json?.choices?.[0]?.message?.content || ''
-    })
-  },
-  local: {
-    name: 'Local LLM',
-    label: '🌐 Local LLM',
-    hint: 'Ollama, LM Studio, vLLM หรือ OpenAI-compatible endpoint',
-    buildRequest: (prompt, _, config) => ({
-      url: config.localEndpoint,
-      options: {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: config.localModel,
-          messages: [{ role: 'user', content: prompt }],
-          stream: false
-        })
-      },
-      parseResponse: (json) => json?.choices?.[0]?.message?.content || json?.message?.content || ''
-    })
-  }
-};
-
-let currentConfig = { ...DEFAULT_CONFIG };
-let parsedAnswers = {};
-let lastExtractedText = '';
-
-// ============================================
-// Init
-// ============================================
 document.addEventListener('DOMContentLoaded', async () => {
+  // Load config first
   await loadConfig();
+  applyConfigToUI();
+
+  // Initialize modules
   setupTabs();
   setupExtractTab();
   setupFillTab();
   setupSettingsTab();
   setupAIProviderUI();
+  setupHistoryTab();
+
+  // Initialize Supabase auth
+  try {
+    await initAuth();
+    updateAuthUI();
+  } catch (e) {
+    console.error('[DGLP] Supabase init failed:', e);
+  }
+
+  // Check quiz status
   checkQuizStatus();
 });
 
@@ -168,7 +83,7 @@ function setStatus(type, text) {
 function setupExtractTab() {
   document.getElementById('btnExtract').addEventListener('click', extractQuiz);
   document.getElementById('btnCopyAgain').addEventListener('click', copyAgain);
-  document.getElementById('btnAskAI').addEventListener('click', askAI);
+  document.getElementById('btnAskAI').addEventListener('click', handleAskAI);
   document.getElementById('btnUseAIAnswer').addEventListener('click', useAIAnswer);
 }
 
@@ -191,11 +106,23 @@ async function extractQuiz() {
       return;
     }
 
-    // สร้างข้อความ
+    // Save topic info
+    lastTopicInfo = data.topicInfo || null;
+
+    // Update topic badge
+    if (lastTopicInfo?.topicName) {
+      const topicBadge = document.getElementById('topicBadge');
+      if (topicBadge) {
+        topicBadge.textContent = `📌 ${lastTopicInfo.topicName}`;
+        topicBadge.classList.remove('hidden');
+      }
+    }
+
+    // Format text
     lastExtractedText = formatQuizText(data);
     const promptText = currentConfig.promptTemplate.replace('{questions}', lastExtractedText);
 
-    // แสดงผล
+    // Show result
     document.getElementById('extractResult').classList.remove('hidden');
     document.getElementById('extractCount').textContent = `${data.questions.length} ข้อ`;
     document.getElementById('extractPreview').textContent = lastExtractedText;
@@ -221,68 +148,67 @@ function resetExtractBtn(btn) {
   btn.disabled = false;
 }
 
+async function copyAgain() {
+  // Fixed: use lastExtractedText instead of reading from DOM
+  const promptText = currentConfig.promptTemplate.replace('{questions}', lastExtractedText);
+  await copyToClipboard(promptText);
+  showCopied();
+}
+
 // ============================================
-// Ask AI — ส่งข้อสอบไป AI โดยตรง
+// Ask AI — With Fallback + Rate Limit
 // ============================================
-async function askAI() {
+async function handleAskAI() {
   if (!lastExtractedText) {
     alert('❌ กรุณาดึงข้อสอบก่อน');
     return;
   }
 
-  const provider = currentConfig.aiProvider;
-  const providerConfig = AI_PROVIDERS[provider];
-
-  // ตรวจ API Key
-  if (provider !== 'local' && !currentConfig.apiKey) {
-    alert(`❌ กรุณาใส่ ${providerConfig.name} API Key ในหน้าตั้งค่า`);
-    // สลับไป Settings tab
-    document.querySelectorAll('.tab')[2].click();
+  // Rate limit check
+  if (isAIBusy) {
+    alert('⏳ กำลังประมวลผลอยู่ กรุณารอ...');
     return;
   }
 
-  // แสดง UI
+  isAIBusy = true;
+  const btnAskAI = document.getElementById('btnAskAI');
+  btnAskAI.disabled = true;
+
+  // Show UI
   const aiSection = document.getElementById('aiSection');
   const aiLoader = document.getElementById('aiLoader');
   const aiResponse = document.getElementById('aiResponse');
   const aiActions = document.getElementById('aiActions');
   const aiStatusText = document.getElementById('aiStatusText');
   const aiProviderBadge = document.getElementById('aiProviderBadge');
+  const aiFallbackLog = document.getElementById('aiFallbackLog');
 
   aiSection.classList.remove('hidden');
   aiLoader.classList.remove('hidden');
   aiResponse.classList.add('hidden');
   aiActions.classList.add('hidden');
-  aiStatusText.textContent = `กำลังถาม ${providerConfig.name}...`;
-  aiProviderBadge.textContent = providerConfig.name;
+  if (aiFallbackLog) aiFallbackLog.classList.add('hidden');
+
+  aiStatusText.textContent = 'กำลังถาม AI...';
+  aiProviderBadge.textContent = AI_PROVIDERS[currentConfig.aiProvider]?.name || 'AI';
 
   const promptText = currentConfig.promptTemplate.replace('{questions}', lastExtractedText);
 
   try {
-    const { url, options, parseResponse } = providerConfig.buildRequest(
-      promptText, currentConfig.apiKey, currentConfig
-    );
+    const result = await askAIWithFallback(promptText, currentConfig);
 
-    const response = await fetch(url, options);
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`${response.status}: ${errText.substring(0, 200)}`);
-    }
-
-    const json = await response.json();
-    const answer = parseResponse(json);
-
-    if (!answer) {
-      throw new Error('AI ไม่ได้ส่งคำตอบกลับมา');
-    }
-
-    // แสดงผล
+    // Show result
     aiLoader.classList.add('hidden');
     aiResponse.classList.remove('hidden');
-    aiResponse.textContent = answer;
+    aiResponse.textContent = result.answer;
     aiActions.classList.remove('hidden');
-    aiStatusText.textContent = `✅ ได้เฉลยจาก ${providerConfig.name} แล้ว`;
+    aiStatusText.textContent = `✅ ได้เฉลยจาก ${result.provider} แล้ว`;
+    aiProviderBadge.textContent = result.provider;
+
+    // Show fallback log if multiple providers were tried
+    if (result.fallbackLog?.length > 1 && aiFallbackLog) {
+      renderFallbackLog(result.fallbackLog);
+    }
 
   } catch (e) {
     console.error('AI Error:', e);
@@ -290,86 +216,42 @@ async function askAI() {
     aiResponse.classList.remove('hidden');
     aiResponse.textContent = `❌ Error: ${e.message}`;
     aiStatusText.textContent = 'เกิดข้อผิดพลาด';
+
+    if (e.fallbackLog && aiFallbackLog) {
+      renderFallbackLog(e.fallbackLog);
+    }
+  } finally {
+    isAIBusy = false;
+    btnAskAI.disabled = false;
   }
 }
 
-// ใช้เฉลยจาก AI → ส่งไปแท็บ "ใส่คำตอบ" อัตโนมัติ
+function renderFallbackLog(log) {
+  const container = document.getElementById('aiFallbackLog');
+  if (!container) return;
+
+  container.classList.remove('hidden');
+  const icons = { success: '✅', error: '❌', skip: '⏭️', cooldown: '⏳' };
+
+  container.innerHTML = log.map(entry => {
+    const icon = icons[entry.status] || '❓';
+    return `<div class="fallback-entry fallback-${entry.status}">${icon} ${entry.provider}: ${entry.reason}</div>`;
+  }).join('');
+}
+
+// Use AI Answer → Fill tab
 function useAIAnswer() {
   const aiText = document.getElementById('aiResponse').textContent;
   if (!aiText) return;
 
-  // สลับไปแท็บใส่คำตอบ
+  // Switch to fill tab
   document.querySelectorAll('.tab')[1].click();
 
-  // วางข้อความลง textarea
+  // Paste into textarea
   document.getElementById('answerInput').value = aiText;
 
   // Auto parse
   parseAnswers();
-}
-
-// ============================================
-// DOM Extraction (inject เข้าหน้าเว็บ)
-// ============================================
-function extractQuizFromPage() {
-  const data = { questions: [], sectionName: '' };
-
-  data.sectionName = document.querySelector('.section-name strong')?.innerText?.trim() || 'DGLP Quiz';
-
-  const questions = document.querySelectorAll('.test-question.question');
-  questions.forEach((q, idx) => {
-    const qNum  = q.querySelector('strong.main-color')?.innerText?.trim() || `คำถาม ${idx+1}:`;
-    const qDesc = q.querySelector('[data-qa="question-desc"]')?.innerText?.trim() || '';
-
-    const choices = [];
-    q.querySelectorAll('.choice').forEach(c => {
-      const label = c.querySelector('.m-r-5')?.innerText?.trim() || '';
-      const desc  = c.querySelector('[data-qa="choice-desc"]')?.innerText?.trim() || '';
-      choices.push({ label, desc });
-    });
-
-    data.questions.push({ qNum, qDesc, choices });
-  });
-
-  return data;
-}
-
-function formatQuizText(data) {
-  const lines = [];
-  data.questions.forEach((q, i) => {
-    lines.push(`${q.qNum} ${q.qDesc}`);
-    q.choices.forEach(c => {
-      lines.push(`   ${c.label} ${c.desc}`);
-    });
-    lines.push('');
-  });
-  return lines.join('\n').trim();
-}
-
-async function copyToClipboard(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    ta.remove();
-  }
-}
-
-function showCopied() {
-  const el = document.getElementById('extractCopied');
-  el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 3000);
-}
-
-async function copyAgain() {
-  const text = document.getElementById('extractPreview').textContent;
-  const promptText = currentConfig.promptTemplate.replace('{questions}', text);
-  await copyToClipboard(promptText);
-  showCopied();
 }
 
 // ============================================
@@ -384,51 +266,6 @@ function setupFillTab() {
     document.getElementById('parsedResult').classList.add('hidden');
     document.getElementById('fillResult').classList.add('hidden');
   });
-}
-
-function parseAnswers() {
-  const raw = document.getElementById('answerInput').value.trim();
-  if (!raw) return;
-
-  parsedAnswers = {};
-
-  const engToThai = { 'A': 'ก', 'B': 'ข', 'C': 'ค', 'D': 'ง', 'a': 'ก', 'b': 'ข', 'c': 'ค', 'd': 'ง' };
-
-  const lines = raw.split('\n');
-  for (const line of lines) {
-    const match = line.match(/(?:Q|ข้อ|คำถาม)?\s*(\d+)\s*[.:)\-]\s*([กขคงA-Da-d])/);
-    if (match) {
-      const num = parseInt(match[1]);
-      let answer = match[2].trim();
-      if (engToThai[answer]) answer = engToThai[answer];
-      parsedAnswers[num] = answer;
-    }
-  }
-
-  const count = Object.keys(parsedAnswers).length;
-
-  if (count === 0) {
-    document.getElementById('parsedResult').classList.add('hidden');
-    document.getElementById('btnFill').disabled = true;
-    alert('❌ ไม่สามารถ parse เฉลยได้ — ตรวจสอบ format อีกครั้ง');
-    return;
-  }
-
-  document.getElementById('parsedResult').classList.remove('hidden');
-  document.getElementById('parsedCount').textContent = `${count} ข้อ`;
-
-  const listEl = document.getElementById('parsedList');
-  listEl.innerHTML = '';
-  Object.entries(parsedAnswers)
-    .sort((a, b) => Number(a[0]) - Number(b[0]))
-    .forEach(([num, ans]) => {
-      const item = document.createElement('div');
-      item.className = 'parsed-item';
-      item.innerHTML = `<span class="q-num">${num}.</span> <span class="q-ans">${ans}</span>`;
-      listEl.appendChild(item);
-    });
-
-  document.getElementById('btnFill').disabled = false;
 }
 
 async function fillAnswers() {
@@ -463,6 +300,26 @@ async function fillAnswers() {
     btn.textContent = '⚡ ใส่คำตอบอัตโนมัติ';
     btn.disabled = false;
 
+    // Save attempt to Supabase & show score modal
+    if (supabaseSession && lastTopicInfo) {
+      showScoreModal(data.total, async (score) => {
+        try {
+          await saveAttempt({
+            topicName: lastTopicInfo.topicName,
+            courseId: lastTopicInfo.courseId,
+            sectionId: lastTopicInfo.sectionId,
+            totalQuestions: data.total,
+            answers: parsedAnswers,
+            aiProvider: currentConfig.aiProvider,
+            score
+          });
+          console.log('[DGLP] Attempt saved to Supabase');
+        } catch (e) {
+          console.error('[DGLP] Failed to save attempt:', e);
+        }
+      });
+    }
+
   } catch (e) {
     console.error(e);
     btn.textContent = '❌ เกิดข้อผิดพลาด';
@@ -473,161 +330,34 @@ async function fillAnswers() {
   }
 }
 
-function fillAnswersOnPage(answerMap) {
-  const questions = document.querySelectorAll('.test-question.question');
-  const result = { filled: 0, total: questions.length, log: [] };
-
-  questions.forEach((q, idx) => {
-    const qIndex = idx + 1;
-    const correctLabel = answerMap[qIndex];
-
-    if (!correctLabel) {
-      result.log.push({ ok: false, text: `⏭️ ข้อ ${qIndex}: ไม่มีเฉลย` });
-      return;
-    }
-
-    const choices = q.querySelectorAll('.choice');
-    let clicked = false;
-
-    choices.forEach(choice => {
-      const label = choice.querySelector('.m-r-5')?.innerText?.trim();
-      if (label && label.replace('.', '').trim() === correctLabel) {
-        const radio = choice.querySelector('.el-radio__input')
-                   || choice.querySelector('input[type="radio"]')
-                   || choice.querySelector('.el-radio');
-        if (radio) {
-          radio.click();
-          clicked = true;
-        } else {
-          choice.click();
-          clicked = true;
-        }
-      }
-    });
-
-    if (clicked) {
-      result.filled++;
-      result.log.push({ ok: true, text: `✅ ข้อ ${qIndex}: เลือก ${correctLabel}` });
-    } else {
-      result.log.push({ ok: false, text: `⚠️ ข้อ ${qIndex}: หา "${correctLabel}" ไม่เจอ` });
-    }
-  });
-
-  return result;
-}
-
 // ============================================
-// TAB 3: Settings + AI Provider
+// Auth UI Helpers
 // ============================================
-function setupSettingsTab() {
-  document.getElementById('btnSaveConfig').addEventListener('click', saveConfig);
-  document.getElementById('btnResetConfig').addEventListener('click', resetConfig);
-  document.getElementById('btnToggleKey').addEventListener('click', toggleKeyVisibility);
-}
+function updateAuthUI() {
+  const authStatus = document.getElementById('authStatus');
+  const authEmailSection = document.getElementById('authEmailSection');
 
-function setupAIProviderUI() {
-  const radios = document.querySelectorAll('input[name="aiProvider"]');
-  radios.forEach(radio => {
-    radio.addEventListener('change', updateProviderUI);
-  });
+  if (!authStatus) return;
 
-  // Set initial state from config
-  const providerRadio = document.querySelector(`input[name="aiProvider"][value="${currentConfig.aiProvider}"]`);
-  if (providerRadio) providerRadio.checked = true;
-  updateProviderUI();
-}
-
-function updateProviderUI() {
-  const selected = document.querySelector('input[name="aiProvider"]:checked')?.value || 'gemini';
-  const provider = AI_PROVIDERS[selected];
-
-  const apiKeyGroup = document.getElementById('apiKeyGroup');
-  const localLLMGroup = document.getElementById('localLLMGroup');
-  const apiKeyLabel = document.getElementById('apiKeyLabel');
-  const apiKeyHint = document.getElementById('apiKeyHint');
-  const footerAI = document.getElementById('aiProviderFooter');
-
-  if (selected === 'local') {
-    apiKeyGroup.classList.add('hidden');
-    localLLMGroup.classList.remove('hidden');
-  } else {
-    apiKeyGroup.classList.remove('hidden');
-    localLLMGroup.classList.add('hidden');
-    apiKeyLabel.textContent = provider.label;
-    apiKeyHint.innerHTML = provider.hint;
-  }
-
-  if (footerAI) footerAI.textContent = `AI: ${provider.name}`;
-}
-
-function toggleKeyVisibility() {
-  const input = document.getElementById('optApiKey');
-  const btn = document.getElementById('btnToggleKey');
-  if (input.type === 'password') {
-    input.type = 'text';
-    btn.textContent = '🔒';
-  } else {
-    input.type = 'password';
-    btn.textContent = '👁️';
-  }
-}
-
-async function loadConfig() {
-  try {
-    const stored = await chrome.storage.local.get('dglpConfig');
-    if (stored.dglpConfig) {
-      currentConfig = { ...DEFAULT_CONFIG, ...stored.dglpConfig };
+  const user = getUser();
+  if (!user) {
+    authStatus.innerHTML = '<span class="status-offline">❌ ยังไม่ได้ Login</span>';
+    if (authEmailSection) authEmailSection.classList.remove('hidden');
+    
+    // Check if logout button exists, if yes, remove it
+    const existingLogOutBtn = document.getElementById('btnLogOut');
+    if(existingLogOutBtn) {
+        existingLogOutBtn.remove();
     }
-  } catch (e) {
-    currentConfig = { ...DEFAULT_CONFIG };
+    return;
   }
 
-  // Apply to UI
-  document.getElementById('optAutoCopy').checked = currentConfig.autoCopy;
-  document.getElementById('optAutoSubmit').checked = currentConfig.autoSubmit;
-  document.getElementById('optInterceptor').checked = currentConfig.interceptor;
-  document.getElementById('optPrompt').value = currentConfig.promptTemplate;
-  document.getElementById('optApiKey').value = currentConfig.apiKey || '';
-  document.getElementById('optLocalEndpoint').value = currentConfig.localEndpoint || DEFAULT_CONFIG.localEndpoint;
-  document.getElementById('optLocalModel').value = currentConfig.localModel || DEFAULT_CONFIG.localModel;
-}
+  authStatus.innerHTML = `<span class="status-online">✅ ${user.email}</span> <button id="btnLogOut" class="btn btn-secondary btn-xs" style="margin-left:8px;">Logout</button>`;
+  
+  if (authEmailSection) authEmailSection.classList.add('hidden');
 
-async function saveConfig() {
-  currentConfig.autoCopy = document.getElementById('optAutoCopy').checked;
-  currentConfig.autoSubmit = document.getElementById('optAutoSubmit').checked;
-  currentConfig.interceptor = document.getElementById('optInterceptor').checked;
-  currentConfig.promptTemplate = document.getElementById('optPrompt').value;
-  currentConfig.aiProvider = document.querySelector('input[name="aiProvider"]:checked')?.value || 'gemini';
-  currentConfig.apiKey = document.getElementById('optApiKey').value;
-  currentConfig.localEndpoint = document.getElementById('optLocalEndpoint').value;
-  currentConfig.localModel = document.getElementById('optLocalModel').value;
-
-  await chrome.storage.local.set({ dglpConfig: currentConfig });
-
-  const btn = document.getElementById('btnSaveConfig');
-  btn.textContent = '✅ บันทึกแล้ว!';
-  setTimeout(() => { btn.textContent = '💾 บันทึก'; }, 2000);
-}
-
-async function resetConfig() {
-  if (!confirm('Reset ค่าทั้งหมดเป็น Default?')) return;
-
-  currentConfig = { ...DEFAULT_CONFIG };
-  await chrome.storage.local.set({ dglpConfig: currentConfig });
-
-  document.getElementById('optAutoCopy').checked = currentConfig.autoCopy;
-  document.getElementById('optAutoSubmit').checked = currentConfig.autoSubmit;
-  document.getElementById('optInterceptor').checked = currentConfig.interceptor;
-  document.getElementById('optPrompt').value = currentConfig.promptTemplate;
-  document.getElementById('optApiKey').value = '';
-  document.getElementById('optLocalEndpoint').value = currentConfig.localEndpoint;
-  document.getElementById('optLocalModel').value = currentConfig.localModel;
-
-  const providerRadio = document.querySelector('input[name="aiProvider"][value="gemini"]');
-  if (providerRadio) providerRadio.checked = true;
-  updateProviderUI();
-
-  const btn = document.getElementById('btnResetConfig');
-  btn.textContent = '✅ Reset แล้ว!';
-  setTimeout(() => { btn.textContent = '🗑️ Reset ทั้งหมด'; }, 2000);
+  document.getElementById('btnLogOut').addEventListener('click', async () => {
+      await signOut();
+      updateAuthUI();
+  });
 }

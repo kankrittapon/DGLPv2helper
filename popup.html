@@ -22,13 +22,16 @@
         <p class="header-sub">ดึงข้อสอบ · ใส่คำตอบ · อัตโนมัติ</p>
       </div>
     </div>
-    <div id="statusBadge" class="status-badge status-offline">
-      <span class="status-dot"></span>
-      <span id="statusText">ไม่พบ Quiz</span>
+    <div class="header-right">
+      <span id="topicBadge" class="topic-badge hidden">📌 Topic</span>
+      <div id="statusBadge" class="status-badge status-offline">
+        <span class="status-dot"></span>
+        <span id="statusText">ไม่พบ Quiz</span>
+      </div>
     </div>
   </header>
 
-  <!-- ===== Tabs ===== -->
+  <!-- ===== Tabs (4 tabs) ===== -->
   <nav class="tabs">
     <button class="tab active" data-tab="extract">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>
@@ -37,6 +40,10 @@
     <button class="tab" data-tab="fill">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       ใส่คำตอบ
+    </button>
+    <button class="tab" data-tab="history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      ประวัติ
     </button>
     <button class="tab" data-tab="settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -54,7 +61,7 @@
           <h3>📋 ดึงข้อสอบจากหน้าปัจจุบัน</h3>
         </div>
         <p class="card-desc">กดปุ่มเพื่อดึงคำถามทั้งหมด แล้ว Copy ไปถาม AI</p>
-        
+
         <button id="btnExtract" class="btn btn-primary btn-block">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg>
           ดึงข้อสอบ
@@ -87,6 +94,8 @@
             <span>กำลังประมวลผล...</span>
           </div>
           <pre id="aiResponse" class="preview-text hidden"></pre>
+          <!-- Fallback Log -->
+          <div id="aiFallbackLog" class="fallback-log hidden"></div>
           <div id="aiActions" class="btn-group hidden">
             <button id="btnUseAIAnswer" class="btn btn-primary btn-sm">
               ⚡ ใช้เฉลยนี้เลย
@@ -134,6 +143,38 @@
       </div>
     </section>
 
+    <!-- TAB: ประวัติ -->
+    <section id="tab-history" class="tab-content">
+      <div class="card">
+        <div class="card-header">
+          <h3>📊 ประวัติการทำข้อสอบ</h3>
+        </div>
+
+        <div class="input-group-inline">
+          <label class="input-label">📌 เลือกหัวข้อ</label>
+          <select id="topicFilter" class="select-input">
+            <option value="">ทุกหัวข้อ</option>
+          </select>
+        </div>
+
+        <div id="historyList" class="history-container">
+          <p class="empty-state">📭 ยังไม่มีประวัติ — ลองทำข้อสอบแล้วใส่คำตอบดูครับ</p>
+        </div>
+
+        <button id="btnLoadMore" class="btn btn-secondary btn-block btn-sm hidden">
+          📥 โหลดเพิ่ม
+        </button>
+
+        <div class="btn-group">
+          <button id="btnCompare" class="btn btn-accent btn-sm" disabled>
+            🔄 เปรียบเทียบ (เลือก 2)
+          </button>
+        </div>
+
+        <div id="compareResult" class="result-box hidden"></div>
+      </div>
+    </section>
+
     <!-- TAB: ตั้งค่า -->
     <section id="tab-settings" class="tab-content">
       <div class="card">
@@ -141,6 +182,7 @@
           <h3>⚙️ ตั้งค่า</h3>
         </div>
 
+        <!-- General Settings -->
         <div class="setting-group">
           <div class="setting-item">
             <div class="setting-info">
@@ -149,17 +191,6 @@
             </div>
             <label class="toggle">
               <input type="checkbox" id="optAutoCopy" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-
-          <div class="setting-item">
-            <div class="setting-info">
-              <span class="setting-label">🚀 Auto Submit หลังใส่คำตอบ</span>
-              <span class="setting-desc">กดส่งอัตโนมัติหลังใส่คำตอบ (ระวัง!)</span>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="optAutoSubmit">
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -207,6 +238,14 @@
               </div>
             </label>
             <label class="provider-option">
+              <input type="radio" name="aiProvider" value="groq">
+              <div class="provider-card">
+                <span class="provider-icon">🚀</span>
+                <span class="provider-name">Groq</span>
+                <span class="provider-tag tag-key">API Key</span>
+              </div>
+            </label>
+            <label class="provider-option">
               <input type="radio" name="aiProvider" value="local">
               <div class="provider-card">
                 <span class="provider-icon">🖥️</span>
@@ -216,24 +255,70 @@
             </label>
           </div>
 
-          <!-- API Key Input -->
-          <div id="apiKeyGroup" class="input-group">
-            <label class="input-label" id="apiKeyLabel">🔑 Gemini API Key</label>
-            <p class="setting-desc" id="apiKeyHint">รับฟรีที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com</a></p>
-            <input type="password" id="optApiKey" class="text-input" placeholder="ใส่ API Key ตรงนี้...">
-            <button id="btnToggleKey" class="btn-icon" title="แสดง/ซ่อน Key">👁️</button>
+          <!-- Per-Provider API Keys -->
+          <div class="api-keys-section">
+            <label class="setting-label-full">🔑 API Keys (แต่ละ provider)</label>
+
+            <!-- Gemini Key -->
+            <div class="key-input-row">
+              <span class="key-provider-label">💎 Gemini</span>
+              <div class="key-input-group">
+                <input type="password" id="optKeyGemini" class="text-input text-input-sm" placeholder="API Key...">
+                <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
+                <button class="btn-test-key" data-provider="gemini" title="ทดสอบ">🧪</button>
+              </div>
+              <span class="test-result"></span>
+            </div>
+
+            <!-- Claude Key -->
+            <div class="key-input-row">
+              <span class="key-provider-label">🟠 Claude</span>
+              <div class="key-input-group">
+                <input type="password" id="optKeyClaude" class="text-input text-input-sm" placeholder="API Key...">
+                <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
+                <button class="btn-test-key" data-provider="claude" title="ทดสอบ">🧪</button>
+              </div>
+              <span class="test-result"></span>
+            </div>
+
+            <!-- Grok Key -->
+            <div class="key-input-row">
+              <span class="key-provider-label">⚡ Grok</span>
+              <div class="key-input-group">
+                <input type="password" id="optKeyGrok" class="text-input text-input-sm" placeholder="API Key...">
+                <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
+                <button class="btn-test-key" data-provider="grok" title="ทดสอบ">🧪</button>
+              </div>
+              <span class="test-result"></span>
+            </div>
+
+            <!-- Groq Key -->
+            <div class="key-input-row">
+              <span class="key-provider-label">🚀 Groq</span>
+              <div class="key-input-group">
+                <input type="password" id="optKeyGroq" class="text-input text-input-sm" placeholder="gsk_...">
+                <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
+                <button class="btn-test-key" data-provider="groq" title="ทดสอบ">🧪</button>
+              </div>
+              <span class="test-result"></span>
+            </div>
           </div>
 
           <!-- Local LLM Settings -->
           <div id="localLLMGroup" class="input-group hidden">
             <label class="input-label">🌐 Endpoint URL</label>
-            <p class="setting-desc">เช่น Ollama, LM Studio, vLLM</p>
-            <input type="text" id="optLocalEndpoint" class="text-input" placeholder="http://localhost:11434/v1/chat/completions">
+            <p class="setting-desc">เช่น Ollama, LM Studio, gpt4free</p>
+            <input type="text" id="optLocalEndpoint" class="text-input" placeholder="http://127.0.0.1:1337/v1/chat/completions">
             <label class="input-label" style="margin-top:8px">📦 Model Name</label>
-            <input type="text" id="optLocalModel" class="text-input" placeholder="llama3, qwen2.5, gemma2">
+            <input type="text" id="optLocalModel" class="text-input" placeholder="gpt-4o, llama3">
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+              <button class="btn btn-secondary btn-sm btn-test-key" data-provider="local">🧪 ทดสอบ Local LLM</button>
+              <span class="test-result"></span>
+            </div>
           </div>
         </div>
 
+        <!-- Prompt Template -->
         <div class="setting-group">
           <label class="setting-label-full">💬 Prompt Template</label>
           <p class="setting-desc">ข้อความที่ใช้ถาม AI — ใช้ <code>{questions}</code> แทนข้อสอบ</p>
@@ -245,6 +330,43 @@
 {questions}</textarea>
         </div>
 
+        <!-- Auth Section -->
+        <div class="setting-group">
+          <label class="setting-label-full">👤 บัญชี & Sync (Email/Password)</label>
+          <div class="auth-status-row">
+            <span class="setting-desc">สถานะ:</span>
+            <span id="authStatus" class="auth-status-text">—</span>
+          </div>
+
+          <div id="authEmailSection" class="auth-email-section hidden">
+            <p class="setting-desc">สมัครสมาชิก/เข้าสู่ระบบด้วยอีเมลเพื่อบันทึกประวัติข้อสอบ</p>
+            <input type="email" id="authEmailInput" class="text-input" placeholder="Email">
+            <input type="password" id="authPasswordInput" class="text-input" placeholder="Password (อย่างน้อย 6 ตัว)" style="margin-top:6px">
+            <div class="btn-group" style="margin-top:8px">
+              <button id="btnSignUp" class="btn btn-secondary btn-sm">📝 สมัครสมาชิก</button>
+              <button id="btnSignIn" class="btn btn-primary btn-sm">🔑 Login</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Database Section -->
+        <div class="setting-group">
+          <label class="setting-label-full">🗄️ ฐานข้อมูล (Supabase)</label>
+          <div id="dbStatusSection" class="db-status-section">
+            <p class="setting-desc" style="display:flex; justify-content:space-between; align-items:center;">
+              <span id="dbStatusText">✅ ใช้ฐานข้อมูลหลัก</span>
+              <button id="btnEditDb" class="btn btn-secondary btn-xs">✏️ แก้ไข Database</button>
+            </p>
+          </div>
+          <div id="dbInputSection" class="hidden">
+            <p class="setting-desc">ตั้งค่า Database ของตัวเอง (ผู้ใช้ทั่วไป<strong>ปล่อยเว้นว่างไว้</strong>เพื่อใช้ฐานข้อมูลหลักได้เลย)</p>
+            <input type="text" id="optSupabaseUrl" class="text-input" placeholder="ปล่อยเว้นว่างไว้เพื่อใช้ DB หลัก" style="margin-top:6px">
+            <input type="password" id="optSupabaseKey" class="text-input" placeholder="anon key (ถ้ามี)" style="margin-top:6px">
+            <button id="btnResetDb" class="btn btn-danger btn-sm" style="margin-top:8px;">🔄 เคลียร์ค่ากลับไปใช้ DB หลัก</button>
+          </div>
+        </div>
+
+        <!-- Save/Reset -->
         <div class="btn-group">
           <button id="btnResetConfig" class="btn btn-danger btn-sm">🗑️ Reset ทั้งหมด</button>
           <button id="btnSaveConfig" class="btn btn-primary btn-sm">💾 บันทึก</button>
@@ -254,13 +376,39 @@
 
   </main>
 
+  <!-- ===== Score Modal ===== -->
+  <div id="scoreModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <h3>🎯 ได้กี่คะแนน?</h3>
+      <div class="score-input-group">
+        <input type="number" id="scoreInput" class="text-input score-input" min="0" max="20" placeholder="0">
+        <span class="score-total">/ <span id="scoreTotalQuestions">20</span></span>
+      </div>
+      <div class="btn-group modal-actions">
+        <button id="btnSkipScore" class="btn btn-secondary btn-sm">ข้าม</button>
+        <button id="btnSaveScore" class="btn btn-primary btn-sm">💾 บันทึก</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Footer ===== -->
   <footer class="footer">
-    <span>DGLP Quiz Helper v1.1</span>
+    <span>DGLP Quiz Helper v1.2</span>
     <span class="footer-dot">·</span>
     <span id="aiProviderFooter">AI: Gemini</span>
+    <span class="footer-dot">·</span>
+    <span id="authStatus2" class="footer-auth"></span>
   </footer>
 
+  <!-- ===== Scripts (order matters!) ===== -->
+  <script src="js/config.js"></script>
+  <script src="js/ai-providers.js"></script>
+  <script src="js/extract.js"></script>
+  <script src="js/fill.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/history.js"></script>
+  <script src="js/settings.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

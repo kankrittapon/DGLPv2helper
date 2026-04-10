@@ -1,24 +1,11 @@
-// ===== DGLP Quiz Helper — Background Service Worker =====
+// ===== DGLP Quiz Helper — Background Service Worker v1.2 =====
 
 // ============================================
 // Extension Install
 // ============================================
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[DGLP Helper] Extension installed');
-
-  // ตั้ง Default Config
-  chrome.storage.local.get('dglpConfig', result => {
-    if (!result.dglpConfig) {
-      chrome.storage.local.set({
-        dglpConfig: {
-          autoCopy: true,
-          autoSubmit: false,
-          interceptor: true,
-          promptTemplate: 'จากข้อสอบต่อไปนี้ ช่วยตอบคำตอบที่ถูกต้อง ตอบเฉพาะตัวเลือก ก-ง ในแต่ละข้อ:\n\n{questions}'
-        }
-      });
-    }
-  });
+  console.log('[DGLP Helper] Extension installed/updated to v1.2');
+  // Config is now managed by js/config.js — no duplicate defaults here
 });
 
 // ============================================
@@ -26,7 +13,6 @@ chrome.runtime.onInstalled.addListener(() => {
 // ============================================
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url?.includes('e-learning.dga.or.th')) {
-    // ลอง inject script เพื่อนับ questions
     chrome.scripting.executeScript({
       target: { tabId },
       func: () => document.querySelectorAll('.test-question.question').length
@@ -41,5 +27,46 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }).catch(() => {
       chrome.action.setBadgeText({ text: '', tabId });
     });
+  }
+});
+
+// ============================================
+// API Proxy — For Claude & other CORS-restricted APIs
+// Runs in service worker context (no CORS restrictions)
+// ============================================
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === 'proxyAPICall') {
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+
+    // Provider-specific headers
+    if (msg.provider === 'claude') {
+      headers['x-api-key'] = msg.apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+      // No anthropic-dangerous-direct-browser-access needed in service worker!
+    } else {
+      headers['Authorization'] = `Bearer ${msg.apiKey}`;
+    }
+
+    fetch(msg.url, {
+      method: 'POST',
+      headers,
+      body: msg.body
+    })
+    .then(async r => {
+      if (!r.ok) {
+        const errText = await r.text();
+        sendResponse({ ok: false, error: `${r.status}: ${errText.substring(0, 200)}` });
+      } else {
+        const json = await r.json();
+        sendResponse({ ok: true, data: json });
+      }
+    })
+    .catch(err => {
+      sendResponse({ ok: false, error: err.message });
+    });
+
+    return true; // async response
   }
 });

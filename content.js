@@ -1,4 +1,4 @@
-// ===== DGLP Quiz Helper — Content Script =====
+// ===== DGLP Quiz Helper — Content Script v1.2 =====
 // Inject เข้าหน้า e-learning.dga.or.th อัตโนมัติ
 // ================================================
 
@@ -11,6 +11,7 @@
 
   // ============================================
   // API Interceptor — ดัก XHR/Fetch
+  // Fixed: ใช้ chrome.storage.local แทน localStorage
   // ============================================
   async function initInterceptor() {
     const config = await getConfig();
@@ -30,7 +31,8 @@
             let json;
             try { json = JSON.parse(text); } catch { json = text; }
             capturedAPIs.push({ url, method: args[1]?.method || 'GET', data: json, time: Date.now() });
-            localStorage.setItem('dglp_api_captured', JSON.stringify(capturedAPIs));
+            // SECURE: use chrome.storage.local instead of localStorage
+            chrome.storage.local.set({ dglp_api_captured: capturedAPIs });
           }
         }).catch(() => {});
       } catch (e) {}
@@ -53,7 +55,8 @@
             let json;
             try { json = JSON.parse(this.responseText); } catch { json = this.responseText; }
             capturedAPIs.push({ url, method: this._dglpMethod, data: json, time: Date.now() });
-            localStorage.setItem('dglp_api_captured', JSON.stringify(capturedAPIs));
+            // SECURE: use chrome.storage.local instead of localStorage
+            chrome.storage.local.set({ dglp_api_captured: capturedAPIs });
           }
         } catch (e) {}
       });
@@ -73,9 +76,11 @@
     }
 
     if (msg.action === 'getApiCount') {
-      const raw = localStorage.getItem('dglp_api_captured');
-      const apis = raw ? JSON.parse(raw) : [];
-      sendResponse({ count: apis.length });
+      chrome.storage.local.get('dglp_api_captured', result => {
+        const apis = result.dglp_api_captured || [];
+        sendResponse({ count: apis.length });
+      });
+      return true; // async response needed
     }
 
     return true; // async response
@@ -89,7 +94,6 @@
       chrome.storage.local.get('dglpConfig', result => {
         resolve(result.dglpConfig || {
           autoCopy: true,
-          autoSubmit: false,
           interceptor: true,
           promptTemplate: ''
         });
