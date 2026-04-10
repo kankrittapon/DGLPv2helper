@@ -255,50 +255,80 @@
             </label>
           </div>
 
-          <!-- Per-Provider API Keys -->
-          <div class="api-keys-section">
-            <label class="setting-label-full">🔑 API Keys (แต่ละ provider)</label>
-
-            <!-- Gemini Key -->
-            <div class="key-input-row">
-              <span class="key-provider-label">💎 Gemini</span>
-              <div class="key-input-group">
-                <input type="password" id="optKeyGemini" class="text-input text-input-sm" placeholder="API Key...">
-                <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
-                <button class="btn-test-key" data-provider="gemini" title="ทดสอบ">🧪</button>
+          <!-- Dynamic Provider Settings (Model + Key) -->
+          <div class="provider-settings-container">
+            <!-- Gemini Settings -->
+            <div id="settings-gemini" class="provider-details">
+              <div class="setting-item-inline">
+                <label>💎 เลือก Model</label>
+                <div class="model-select-group">
+                  <select id="modelGemini" class="model-select"></select>
+                  <button id="btnSyncGemini" class="btn-icon-sm" title="ดึงลิสต์โมเดลล่าสุด">🔄</button>
+                </div>
+              </div>
+              <div class="key-input-row">
+                <div class="key-input-group">
+                  <input type="password" id="optKeyGemini" class="text-input text-input-sm" placeholder="API Key...">
+                  <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
+                  <button class="btn-test-key" data-provider="gemini" title="ทดสอบ">🧪</button>
+                </div>
               </div>
               <span class="test-result"></span>
             </div>
 
-            <!-- Claude Key -->
-            <div class="key-input-row">
-              <span class="key-provider-label">🟠 Claude</span>
-              <div class="key-input-group">
-                <input type="password" id="optKeyClaude" class="text-input text-input-sm" placeholder="API Key...">
-                <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
-                <button class="btn-test-key" data-provider="claude" title="ทดสอบ">🧪</button>
+            <!-- Claude Settings -->
+            <div id="settings-claude" class="provider-details hidden">
+              <div class="setting-item-inline">
+                <label>🟠 เลือก Model</label>
+                <div class="model-select-group">
+                  <select id="modelClaude" class="model-select"></select>
+                  <button id="btnSyncClaude" class="btn-icon-sm" title="ดึงลิสต์โมเดลล่าสุด">🔄</button>
+                </div>
+              </div>
+              <div class="key-input-row">
+                <div class="key-input-group">
+                  <input type="password" id="optKeyClaude" class="text-input text-input-sm" placeholder="API Key...">
+                  <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
+                  <button class="btn-test-key" data-provider="claude" title="ทดสอบ">🧪</button>
+                </div>
               </div>
               <span class="test-result"></span>
             </div>
 
-            <!-- Grok Key -->
-            <div class="key-input-row">
-              <span class="key-provider-label">⚡ Grok</span>
-              <div class="key-input-group">
-                <input type="password" id="optKeyGrok" class="text-input text-input-sm" placeholder="API Key...">
-                <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
-                <button class="btn-test-key" data-provider="grok" title="ทดสอบ">🧪</button>
+            <!-- Grok Settings -->
+            <div id="settings-grok" class="provider-details hidden">
+              <div class="setting-item-inline">
+                <label>⚡ เลือก Model</label>
+                <div class="model-select-group">
+                  <select id="modelGrok" class="model-select"></select>
+                  <button id="btnSyncGrok" class="btn-icon-sm" title="ดึงลิสต์โมเดลล่าสุด">🔄</button>
+                </div>
+              </div>
+              <div class="key-input-row">
+                <div class="key-input-group">
+                  <input type="password" id="optKeyGrok" class="text-input text-input-sm" placeholder="API Key...">
+                  <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
+                  <button class="btn-test-key" data-provider="grok" title="ทดสอบ">🧪</button>
+                </div>
               </div>
               <span class="test-result"></span>
             </div>
 
-            <!-- Groq Key -->
-            <div class="key-input-row">
-              <span class="key-provider-label">🚀 Groq</span>
-              <div class="key-input-group">
-                <input type="password" id="optKeyGroq" class="text-input text-input-sm" placeholder="gsk_...">
-                <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
-                <button class="btn-test-key" data-provider="groq" title="ทดสอบ">🧪</button>
+            <!-- Groq Settings -->
+            <div id="settings-groq" class="provider-details hidden">
+              <div class="setting-item-inline">
+                <label>🚀 เลือก Model</label>
+                <div class="model-select-group">
+                  <select id="modelGroq" class="model-select"></select>
+                  <button id="btnSyncGroq" class="btn-icon-sm" title="ดึงลิสต์โมเดลล่าสุด">🔄</button>
+                </div>
+              </div>
+              <div class="key-input-row">
+                <div class="key-input-group">
+                  <input type="password" id="optKeyGroq" class="text-input text-input-sm" placeholder="gsk_...">
+                  <button class="btn-toggle-key" title="แสดง/ซ่อน">👁️</button>
+                  <button class="btn-test-key" data-provider="groq" title="ทดสอบ">🧪</button>
+                </div>
               </div>
               <span class="test-result"></span>
             </div>

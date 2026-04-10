@@ -9,81 +9,115 @@ const AI_PROVIDERS = {
     name: 'Gemini',
     label: '🔑 Gemini API Key',
     hint: 'รับฟรีที่ <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com</a>',
-    buildRequest: (prompt, apiKey) => ({
-      // SECURE: ใช้ x-goog-api-key header แทน URL query param
-      url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
-      options: {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey
+    models: [
+      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (แนะนำ/ฟรี)', isFree: true },
+      { id: 'gemini-flash-latest', name: 'Gemini Flash Latest (ตัวล่าสุด)', isFree: true },
+      { id: 'gemini-1.5-flash-8b', name: 'Gemini 1.5 Flash-8B (ฟรี/จิ๋ว)', isFree: true },
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (ใหม่/ฟรี)', isFree: true },
+      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro (ฉลาดข้ามขั้น/โควต้าน้อย)', isFree: false }
+    ],
+    buildRequest: (prompt, apiKey, config) => {
+      const model = config.selectedModels?.gemini || 'gemini-1.5-flash';
+      return {
+        // ส่งทั้ง Query Param และ Header เพื่อความชัวร์ (404-safe)
+        url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        options: {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-goog-api-key': apiKey
+          },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      },
-      parseResponse: (json) => json?.candidates?.[0]?.content?.parts?.[0]?.text || ''
-    })
+        parseResponse: (json) => json?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+      };
+    }
   },
   claude: {
     name: 'Claude',
     label: '🔑 Claude API Key',
-    hint: 'ใช้ API Key จาก <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a>',
-    // SECURE: proxy ผ่าน background.js — ลบ anthropic-dangerous-direct-browser-access
-    buildRequest: (prompt, apiKey) => ({
-      useProxy: true,
-      url: 'https://api.anthropic.com/v1/messages',
-      apiKey: apiKey,
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: prompt }]
-      }),
-      parseResponse: (json) => json?.content?.[0]?.text || ''
-    })
+    hint: 'ใช้ API Key จาก <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a> <span class="tag-paid">[เสียเงิน]</span>',
+    models: [
+      { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet (ฉลาดมาก)', isFree: false },
+      { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku (เร็ว)', isFree: false },
+      { id: 'claude-3-opus-latest', name: 'Claude 3 Opus (รุ่นใหญ่)', isFree: false }
+    ],
+    buildRequest: (prompt, apiKey, config) => {
+      const model = config.selectedModels?.claude || 'claude-3-5-sonnet-latest';
+      return {
+        useProxy: true,
+        url: 'https://api.anthropic.com/v1/messages',
+        apiKey: apiKey,
+        body: JSON.stringify({
+          model: model,
+          max_tokens: 1024,
+          messages: [{ role: 'user', content: prompt }]
+        }),
+        parseResponse: (json) => json?.content?.[0]?.text || ''
+      };
+    }
   },
   grok: {
     name: 'Grok',
     label: '🔑 Grok API Key',
-    hint: 'ใช้ API Key จาก <a href="https://console.x.ai/" target="_blank">console.x.ai</a> ($25 เครดิตฟรี/เดือน)',
-    buildRequest: (prompt, apiKey) => ({
-      url: 'https://api.x.ai/v1/chat/completions',
-      options: {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+    hint: 'ใช้จาก <a href="https://console.x.ai/" target="_blank">console.x.ai</a> <span class="tag-paid">[Trial/$25 ฟรี]</span>',
+    models: [
+      { id: 'grok-3-mini', name: 'Grok 3 Mini', isFree: false },
+      { id: 'grok-2-1212', name: 'Grok 2', isFree: false }
+    ],
+    buildRequest: (prompt, apiKey, config) => {
+      const model = config.selectedModels?.grok || 'grok-3-mini';
+      return {
+        url: 'https://api.x.ai/v1/chat/completions',
+        options: {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [{ role: 'user', content: prompt }]
+          })
         },
-        body: JSON.stringify({
-          model: 'grok-3-mini',
-          messages: [{ role: 'user', content: prompt }]
-        })
-      },
-      parseResponse: (json) => json?.choices?.[0]?.message?.content || ''
-    })
+        parseResponse: (json) => json?.choices?.[0]?.message?.content || ''
+      };
+    }
   },
   groq: {
     name: 'Groq',
     label: '🔑 Groq API Key',
-    hint: 'ใช้ API Key จาก <a href="https://console.groq.com/" target="_blank">console.groq.com</a> (เร็วมาก!)',
-    buildRequest: (prompt, apiKey) => ({
-      url: 'https://api.groq.com/openai/v1/chat/completions',
-      options: {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+    hint: 'สมัครที่ <a href="https://console.groq.com/" target="_blank">console.groq.com</a> (รันไวมาก)',
+    models: [
+      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B (เร็วสุด/ฟรีรัว)', isFree: true },
+      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B (ฉลาด/ฟรี)', isFree: true },
+      { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7B (สเถียร)', isFree: true },
+      { id: 'llama-3.2-3b-preview', name: 'Llama 3.2 3B (จิ๋ว/Preview)', isFree: true }
+    ],
+    buildRequest: (prompt, apiKey, config) => {
+      const model = config.selectedModels?.groq || 'llama-3.3-70b-versatile';
+      return {
+        url: 'https://api.groq.com/openai/v1/chat/completions',
+        options: {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: model,
+            messages: [{ role: 'user', content: prompt }]
+          })
         },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: prompt }]
-        })
-      },
-      parseResponse: (json) => json?.choices?.[0]?.message?.content || ''
-    })
+        parseResponse: (json) => json?.choices?.[0]?.message?.content || ''
+      };
+    }
   },
   local: {
     name: 'Local LLM',
     label: '🌐 Local LLM',
-    hint: 'Ollama, LM Studio, vLLM หรือ OpenAI-compatible endpoint',
+    hint: 'Ollama, LM Studio หรือ OpenAI-compatible endpoint',
+    models: [], // Local doesn't use pre-defined list
     buildRequest: (prompt, _, config) => ({
       useProxy: true,
       url: config.localEndpoint,

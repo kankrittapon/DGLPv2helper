@@ -14,10 +14,16 @@ const DEFAULT_CONFIG = {
     grok: '',
     groq: ''
   },
+  selectedModels: {
+    gemini: 'gemini-1.5-flash',
+    claude: 'claude-3-5-sonnet-latest',
+    grok: 'grok-3-mini',
+    groq: 'llama-3.1-8b-instant'
+  },
   localEndpoint: 'http://localhost:11434/v1/chat/completions',
   localModel: 'llama3',
   fallbackEnabled: true,
-  fallbackOrder: ['gemini', 'claude', 'grok', 'groq', 'local'],
+  fallbackOrder: ['gemini', 'groq', 'local', 'grok', 'claude'],
   promptTemplate: 'จากข้อสอบต่อไปนี้ ช่วยตอบคำตอบที่ถูกต้อง ตอบเฉพาะตัวเลือก ก-ง ในแต่ละข้อ โดยตอบในรูปแบบ:\n1. ก\n2. ข\n...\n\n{questions}',
   
   // Database Config
@@ -49,6 +55,11 @@ function migrateConfig(stored) {
   // Add supabase defaults if missing
   if (stored.supabaseUrl === undefined) stored.supabaseUrl = '';
   if (stored.supabaseKey === undefined) stored.supabaseKey = '';
+
+  // Add selectedModels defaults if missing
+  if (!stored.selectedModels) {
+    stored.selectedModels = { ...DEFAULT_CONFIG.selectedModels };
+  }
 
   return stored;
 }
